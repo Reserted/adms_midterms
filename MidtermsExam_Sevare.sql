@@ -298,11 +298,63 @@ CALL add_like('luna', 'brew', 'everyone_except');
 CALL add_like('luna', 'ui', 'single');
 
 
+-- PROCEDURE: Add follower
+CREATE OR REPLACE PROCEDURE add_follower(
+    p_follower_username TEXT,
+    p_following_username TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_follower_id UUID;
+    v_following_id UUID;
+BEGIN
+    -- Get the follower user_id
+    SELECT user_id INTO v_follower_id
+    FROM users
+    WHERE username = p_follower_username;
+
+    IF v_follower_id IS NULL THEN
+        RAISE EXCEPTION 'Follower "%" not found.', p_follower_username;
+    END IF;
+
+    -- Get the following user_id
+    SELECT user_id INTO v_following_id
+    FROM users
+    WHERE username = p_following_username;
+
+    IF v_following_id IS NULL THEN
+        RAISE EXCEPTION 'User to follow "%" not found.', p_following_username;
+    END IF;
+
+    -- Prevent self-follow
+    IF v_follower_id = v_following_id THEN
+        RAISE EXCEPTION 'User "%" cannot follow themselves.', p_follower_username;
+    END IF;
+
+    -- Insert follow relationship if not existing
+    INSERT INTO followers (follower_id, following_id)
+    VALUES (v_follower_id, v_following_id)
+    ON CONFLICT DO NOTHING;
+
+    RAISE NOTICE 'User "%" now follows "%".', p_follower_username, p_following_username;
+END;
+$$;
+
+
+CALL add_follower('luna', 'eleijah');
+CALL add_follower('hannah', 'eleijah');
+CALL add_follower('kai', 'eleijah');
+CALL add_follower('aria', 'luna');
+CALL add_follower('noah', 'hannah');
+CALL add_follower('mia', 'kai');
+CALL add_follower('leo', 'aria');
+CALL add_follower('sofia', 'noah');
+CALL add_follower('ethan', 'eleijah');
+
 -- check notifs 
 -- SELECT * from notifications
 
-
--- posts
 SELECT 
     p.post_id,
     u.username AS author,
@@ -312,7 +364,6 @@ FROM posts p
 JOIN users u ON p.user_id = u.user_id
 ORDER BY p.created_at DESC;
 
--- comments
 SELECT 
     c.comment_id,
     cu.username AS commenter,
@@ -326,7 +377,6 @@ JOIN posts p ON c.post_id = p.post_id
 JOIN users pu ON p.user_id = pu.user_id
 ORDER BY c.created_at DESC;
 
--- likes
 SELECT 
     l.like_id,
     u.username AS liker,
@@ -343,5 +393,14 @@ LEFT JOIN comments c ON l.comment_id = c.comment_id
 ORDER BY l.created_at DESC;
 
 
+
+SELECT 
+    f2.username AS follower,
+    t2.username AS following,
+    f.followed_at
+FROM followers f
+JOIN users f2 ON f.follower_id = f2.user_id
+JOIN users t2 ON f.following_id = t2.user_id
+ORDER BY f2.username, f.followed_at DESC;
 
 
